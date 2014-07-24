@@ -42,8 +42,15 @@ def main():
             raw_input("\n[Point camera at grey card under %s and press ENTER]"%(
                     illum_str[i]))
 
+            # Capture a shot after AE+AWB have converged.
             cam.do_3a(do_af=False)
             cap = cam.do_capture(its.objects.auto_capture_request())
+            img = its.image.convert_capture_to_rgb_image(cap)
+            its.image.write_image(img, "%s_i=%d.jpg" % (NAME, i))
+
+            # Get the HAL-reported WB values for this shot, as well as the
+            # per-unit calibration data for this device (which is a static
+            # value).
             gains = cap["metadata"]["android.colorCorrection.gains"]
             ccm = its.objects.rational_to_float(
                     cap["metadata"]["android.colorCorrection.transform"])
