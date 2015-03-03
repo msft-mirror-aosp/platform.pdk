@@ -25,8 +25,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
+import java.nio.FloatBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.text.SimpleDateFormat;
@@ -69,7 +71,9 @@ public class ImageReaderSubPane extends TargetSubPane {
         JPEG(ImageFormat.JPEG),
         RAW16(ImageFormat.RAW_SENSOR),
         RAW10(ImageFormat.RAW10),
-        YUV_420_888(ImageFormat.YUV_420_888);
+        YUV_420_888(ImageFormat.YUV_420_888),
+        DEPTH16(ImageFormat.DEPTH16),
+        DEPTH_POINT_CLOUD(ImageFormat.DEPTH_POINT_CLOUD);
 
         public final int imageFormat;
 
@@ -184,6 +188,9 @@ public class ImageReaderSubPane extends TargetSubPane {
         for (OutputFormat format : OutputFormat.values()) {
             if (streamConfigMap.isOutputSupportedFor(format.imageFormat)) {
                 mFormats.add(format);
+                TLog.i("Format " + format + " supported");
+            } else {
+                TLog.i("Format " + format + " not supported");
             }
         }
 
@@ -361,6 +368,29 @@ public class ImageReaderSubPane extends TargetSubPane {
                 TLog.e("RAW10 viewing not implemented");
                 break;
             }
+            case ImageFormat.DEPTH16: {
+                ShortBuffer y16Buffer = img.getPlanes()[0].getBuffer().asShortBuffer();
+                y16Buffer.rewind();
+                // Very rough nearest-neighbor downsample for display
+                int w = img.getWidth() / SCALE_FACTOR;
+                int h = img.getHeight() / SCALE_FACTOR;
+                int stride = img.getPlanes()[0].getRowStride();
+                short[] yRow = new short[img.getWidth()];
+                int[] imgArray = new int[w * h];
+                for (int y = 0, j = 0; y < h; y++) {
+                    // Align to start of red row in the pair to sample from
+                    y16Buffer.position(
+                        y * SCALE_FACTOR * stride);
+                    y16Buffer.get(yRow);
+                    for (int x = 0, i = 0; x < w; x++, i += SCALE_FACTOR, j++) {
+                        int d = (yRow[i] >> 8) & 0xFF;
+                        imgArray[j] = Color.rgb(d,d,d);
+                    }
+                }
+                imgBitmap = Bitmap.createBitmap(imgArray, w, h, Bitmap.Config.ARGB_8888);
+                break;
+
+            }
         }
         if (imgBitmap != null) {
             mImageView.setImageBitmap(imgBitmap);
@@ -502,6 +532,14 @@ public class ImageReaderSubPane extends TargetSubPane {
                     TLog.e("RAW10 saving not implemented");
                     break;
                 }
+                case ImageFormat.DEPTH16: {
+                    writeDepth16Image(img, out);
+                    break;
+                }
+                case ImageFormat.DEPTH_POINT_CLOUD: {
+                    writeDepthPointImage(img, out);
+                    break;
+                }
             }
         }
         return output.getName();
@@ -587,6 +625,53 @@ public class ImageReaderSubPane extends TargetSubPane {
         }
     }
 
+    // This saves a 16-bpp depth image as a PNG, with the low bits in the
+    // red channel and the high bits in the blue
+    private void writeDepth16Image(Image img, OutputStream out) throws IOException {
+        if (img.getFormat() != ImageFormat.DEPTH16) {
+            throw new IOException(
+                    String.format("Unexpected Image format: %d, expected ImageFormat.DEPTH16",
+                            img.getFormat()));
+        }
+        int w = img.getWidth();
+        int h = img.getHeight();
+        int rowStride = img.getPlanes()[0].getRowStride() / 2; // in shorts
+        int[] rgbData = new int[w * h];
+        short[] yRow = new short[w];
+        ShortBuffer y16Data = img.getPlanes()[0].getBuffer().asShortBuffer();
+        int rgbIndex = 0;
+
+        for (int y = 0; y < h; y++) {
+            y16Data.position(y * rowStride);
+            y16Data.get(yRow, 0, w);
+            for (int x = 0; x < w; x++) {
+                short y16 = yRow[x];
+                rgbData[rgbIndex++] =
+                        Color.rgb(y16 & 0x00FF, (y16 >> 8) & 0x00FF, 0);
+            }
+        }
+
+        Bitmap rgbImage = Bitmap.createBitmap(rgbData, w, h, Bitmap.Config.ARGB_8888);
+        rgbImage.compress(Bitmap.CompressFormat.PNG, 100, out);
+    }
+
+    // This saves a text file of float values for a point cloud
+    private void writeDepthPointImage(Image img, OutputStream out) throws IOException {
+        if (img.getFormat() != ImageFormat.DEPTH_POINT_CLOUD) {
+            throw new IOException(
+                    String.format("Unexpected Image format: %d, expected ImageFormat.DEPTH16",
+                            img.getFormat()));
+        }
+        FloatBuffer pointList = img.getPlanes()[0].getBuffer().asFloatBuffer();
+        int pointCount = pointList.limit() / 3;
+        OutputStreamWriter writer = new OutputStreamWriter(out);
+        for (int i = 0; i < pointCount; i++) {
+            String pt = String.format("%f, %f, %f\n",
+                    pointList.get(), pointList.get(),pointList.get());
+            writer.write(pt, 0, pt.length());
+        }
+    }
+
     File getOutputImageFile(int type, long timestamp){
         // To be safe, you should check that the SDCard is mounted
         // using Environment.getExternalStorageState() before doing this.
@@ -640,6 +725,13 @@ public class ImageReaderSubPane extends TargetSubPane {
                 mediaFile = new File(mediaStorageDir.getPath() + File.separator +
                         "IMG_"+ timeStamp + ".raw10");
                 break;
+            case ImageFormat.DEPTH16:
+                mediaFile = new File(mediaStorageDir.getPath() + File.separator +
+                        "IMG_"+ timeStamp + "_depth.png");
+            case ImageFormat.DEPTH_POINT_CLOUD:
+                mediaFile = new File(mediaStorageDir.getPath() + File.separator +
+                        "IMG_"+ timeStamp + "_depth_points.txt");
+
         }
 
         return mediaFile;
