@@ -89,6 +89,7 @@ public class TestingCamera extends Activity
     private Spinner mPreviewSizeSpinner;
     private Spinner mPreviewFrameRateSpinner;
     private ToggleButton mPreviewToggle;
+    private ToggleButton mHDRToggle;
     private Spinner mAutofocusModeSpinner;
     private Button mAutofocusButton;
     private Button mCancelAutofocusButton;
@@ -204,6 +205,10 @@ public class TestingCamera extends Activity
         mPreviewFrameRateSpinner = (Spinner) findViewById(R.id.preview_frame_rate_spinner);
         mPreviewFrameRateSpinner.setOnItemSelectedListener(mPreviewFrameRateListener);
         mOpenOnlyControls.add(mPreviewFrameRateSpinner);
+
+        mHDRToggle = (ToggleButton) findViewById(R.id.hdr_mode);
+        mHDRToggle.setOnClickListener(mHDRToggleListener);
+        mOpenOnlyControls.add(mHDRToggle);
 
         mPreviewToggle = (ToggleButton) findViewById(R.id.start_preview);
         mPreviewToggle.setOnClickListener(mPreviewToggleListener);
@@ -533,6 +538,26 @@ public class TestingCamera extends Activity
         @Override
         public void onNothingSelected(AdapterView<?> parent) {
 
+        }
+    };
+
+    private View.OnClickListener mHDRToggleListener =
+            new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            if (mState == CAMERA_TAKE_PICTURE) {
+                logE("Can't change preview state while taking picture!");
+                return;
+            }
+
+            if (mHDRToggle.isChecked()) {
+                log("Turning on HDR");
+                mParams.setSceneMode(Camera.Parameters.SCENE_MODE_HDR);
+            } else {
+                log("Turning off HDR");
+                mParams.setSceneMode(Camera.Parameters.SCENE_MODE_AUTO);
+            }
+            mCamera.setParameters(mParams);
         }
     };
 
@@ -936,6 +961,16 @@ public class TestingCamera extends Activity
 
         setCameraDisplayOrientation();
         mParams = mCamera.getParameters();
+        if (mParams != null) {
+            List<String> sceneModes = mParams.getSupportedSceneModes();
+            for (String mode : sceneModes) {
+                if (Camera.Parameters.SCENE_MODE_HDR.equals(mode)){
+                    mHDRToggle.setEnabled(true);
+                } else {
+                    mHDRToggle.setEnabled(false);
+                }
+            }
+        }
 
         // Set up preview size selection
 
