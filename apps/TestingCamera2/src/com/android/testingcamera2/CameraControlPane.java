@@ -376,8 +376,7 @@ public class CameraControlPane extends ControlPane {
                     if (isChecked) {
                         // Open camera
                         mCurrentCamera = null;
-                        boolean success = mCameraOps.openCamera(mCurrentCameraId, mCameraListener);
-                        buttonView.setChecked(success);
+                        mCameraOps.openCamera(mCurrentCameraId, mCameraListener);
                     } else {
                         // Close camera
                         closeCurrentCamera();
@@ -520,6 +519,7 @@ public class CameraControlPane extends ControlPane {
         @Override
         public void onClosed(CameraDevice camera) {
             // Don't change state on close, tracked by callers of close()
+            mOpenButton.setChecked(false);
         }
 
         @Override
@@ -558,7 +558,6 @@ public class CameraControlPane extends ControlPane {
             mCurrentCamera.close();
             mCurrentCamera = null;
             setCameraState(CameraState.CLOSED);
-            mOpenButton.setChecked(false);
         }
     }
 

@@ -16,9 +16,11 @@
 
 package com.android.testingcamera;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.FragmentManager;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.ImageFormat;
 import android.hardware.Camera;
@@ -114,6 +116,8 @@ public class TestingCamera extends Activity
 
     private TextView mLogView;
 
+    SnapshotDialogFragment mSnapshotDialog = null;
+
     private Set<View> mOpenOnlyControls = new HashSet<View>();
     private Set<View> mPreviewOnlyControls = new HashSet<View>();
 
@@ -172,7 +176,9 @@ public class TestingCamera extends Activity
     /** Misc variables */
 
     private static final String TAG = "TestingCamera";
-
+    private static final int PERMISSIONS_REQUEST_CAMERA = 1;
+    private static final int PERMISSIONS_REQUEST_RECORDING = 2;
+    static final int PERMISSIONS_REQUEST_SNAPSHOT = 3;
 
     /** Activity lifecycle */
 
@@ -331,7 +337,6 @@ public class TestingCamera extends Activity
     public void onResume() {
         super.onResume();
         log("onResume: Setting up");
-        mPreviewHolder = null;
         setUpCamera();
     }
 
@@ -356,6 +361,36 @@ public class TestingCamera extends Activity
             }
             mState = CAMERA_UNINITIALIZED;
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult (int requestCode, String[] permissions,
+            int[] grantResults) {
+        if (requestCode == PERMISSIONS_REQUEST_CAMERA) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                log("Camera permission granted");
+                setUpCamera();
+            } else {
+                log("Camera permission denied, can't do anything");
+                finish();
+            }
+        } else if (requestCode == PERMISSIONS_REQUEST_RECORDING) {
+            mRecordToggle.setChecked(false);
+            for (int i = 0; i < grantResults.length; i++) {
+                if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
+                    log("Recording permission " + permissions[i] + " denied");
+                    return;
+                }
+                log("Recording permissions granted");
+                setUpCamera();
+            }
+        } else if (requestCode == PERMISSIONS_REQUEST_SNAPSHOT) {
+            if (mSnapshotDialog != null) {
+                mSnapshotDialog.onRequestPermissionsResult(requestCode, permissions,
+                    grantResults);
+            }
+        }
+
     }
 
     /** SurfaceHolder.Callback methods */
@@ -860,10 +895,10 @@ public class TestingCamera extends Activity
         public void onPictureTaken(byte[] data, Camera camera) {
             log("JPEG picture callback received");
             FragmentManager fm = getFragmentManager();
-            SnapshotDialogFragment snapshotDialog = new SnapshotDialogFragment();
+            mSnapshotDialog = new SnapshotDialogFragment();
 
-            snapshotDialog.updateImage(data);
-            snapshotDialog.show(fm, "snapshot_dialog_fragment");
+            mSnapshotDialog.updateImage(data);
+            mSnapshotDialog.show(fm, "snapshot_dialog_fragment");
 
             mPreviewToggle.setEnabled(true);
 
@@ -944,6 +979,15 @@ public class TestingCamera extends Activity
 
         if (mState < CAMERA_OPEN) {
             log("Opening camera " + mCameraId);
+
+            if (checkSelfPermission(Manifest.permission.CAMERA)
+                    != PackageManager.PERMISSION_GRANTED) {
+                log("Requested camera permission");
+                requestPermissions(new String[] {Manifest.permission.CAMERA},
+                        PERMISSIONS_REQUEST_CAMERA);
+                return;
+            }
+
 
             try {
                 mCamera = Camera.open(mCameraId);
@@ -1523,6 +1567,19 @@ public class TestingCamera extends Activity
 
     private void startRecording() {
         log("Starting recording");
+
+        if  ((checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED)
+            || (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED)) {
+            log("Requesting recording permissions (audio, storage)");
+            requestPermissions(new String[] {
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                PERMISSIONS_REQUEST_RECORDING);
+            return;
+        }
+
         logIndent(1);
         log("Configuring MediaRecoder");
 
