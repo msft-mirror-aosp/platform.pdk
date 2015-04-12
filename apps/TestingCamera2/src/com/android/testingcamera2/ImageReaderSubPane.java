@@ -345,8 +345,8 @@ public class ImageReaderSubPane extends TargetSubPane {
                 int uPStride = img.getPlanes()[1].getPixelStride();
                 int vPStride = img.getPlanes()[2].getPixelStride();
                 byte[] row = new byte[mConfiguredSize.getWidth()];
-                byte[] uRow = new byte[mConfiguredSize.getWidth()/2*uPStride];
-                byte[] vRow = new byte[mConfiguredSize.getWidth()/2*vPStride];
+                byte[] uRow = new byte[(mConfiguredSize.getWidth()/2-1)*uPStride + 1];
+                byte[] vRow = new byte[(mConfiguredSize.getWidth()/2-1)*vPStride + 1];
                 int[] imgArray = new int[w * h];
                 for (int y = 0, j = 0, rowStart = 0, uRowStart = 0, vRowStart = 0; y < h;
                      y++, rowStart += stride*SCALE_FACTOR) {
@@ -669,7 +669,7 @@ public class ImageReaderSubPane extends TargetSubPane {
                 }
             } else {
                 // Need to pack rows
-                byte[] row = new byte[colorW * colorPlane.getPixelStride()];
+                byte[] row = new byte[(colorW - 1) * colorPlane.getPixelStride() + 1];
                 byte[] packedRow = new byte[colorW];
                 ByteBuffer packedRowBuffer = ByteBuffer.wrap(packedRow);
                 for (int y = 0, rowStart = 0; y < colorH;

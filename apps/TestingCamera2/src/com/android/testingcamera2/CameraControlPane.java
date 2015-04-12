@@ -297,6 +297,19 @@ public class CameraControlPane extends ControlPane {
         return null;
     }
 
+    public void prepareSurface(Surface target) {
+        if (mCurrentCaptureSession != null) {
+            try {
+                TLog.i("Preparing Surface " + target);
+                mCurrentCaptureSession.prepare(target);
+            } catch (CameraAccessException e) {
+                TLog.e("Unable to prepare surface for camera %s.", e, mCurrentCameraId);
+            } catch (IllegalArgumentException e) {
+                TLog.e("Bad Surface passed to prepare", e);
+            }
+        }
+    }
+
     private CaptureCallback mResultListener = new CaptureCallback() {
         public void onCaptureCompleted(
                 CameraCaptureSession session,
@@ -513,6 +526,12 @@ public class CameraControlPane extends ControlPane {
             }
             setSessionState(SessionState.CLOSED);
         }
+
+        @Override
+        public void onSurfacePrepared(CameraCaptureSession session, Surface surface) {
+            TLog.i("Surface preparation complete for Surface " + surface);
+        }
+
     };
 
     private final CameraDevice.StateCallback mCameraListener = new CameraDevice.StateCallback() {
