@@ -1005,14 +1005,18 @@ public class TestingCamera extends Activity
 
         setCameraDisplayOrientation();
         mParams = mCamera.getParameters();
+        mHDRToggle.setEnabled(false);
         if (mParams != null) {
             List<String> sceneModes = mParams.getSupportedSceneModes();
-            for (String mode : sceneModes) {
-                if (Camera.Parameters.SCENE_MODE_HDR.equals(mode)){
-                    mHDRToggle.setEnabled(true);
-                } else {
-                    mHDRToggle.setEnabled(false);
+            if (sceneModes != null) {
+                for (String mode : sceneModes) {
+                    if (Camera.Parameters.SCENE_MODE_HDR.equals(mode)){
+                        mHDRToggle.setEnabled(true);
+                        break;
+                    }
                 }
+            } else {
+                Log.i(TAG, "Supported scene modes is null");
             }
         }
 
