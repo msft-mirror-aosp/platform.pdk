@@ -1037,7 +1037,9 @@ public class TestingCamera extends Activity
         updateColorEffects(mParams);
 
         // Trigger updating video record size to match camcorder profile
-        mCamcorderProfileSpinner.setSelection(mCamcorderProfile);
+        if (mCamcorderProfile >= 0) {
+            mCamcorderProfileSpinner.setSelection(mCamcorderProfile);
+        }
 
         if (mParams.isVideoStabilizationSupported()) {
             log("Video stabilization is supported");
@@ -1317,10 +1319,17 @@ public class TestingCamera extends Activity
                 mCamcorderProfiles.add(CamcorderProfile.get(cameraId, PROFILES[i]));
             }
         }
+
         String[] nameArray = (String[])availableCamcorderProfileNames.toArray(new String[0]);
         mCamcorderProfileSpinner.setAdapter(
                 new ArrayAdapter<String>(
                         this, R.layout.spinner_item, nameArray));
+
+        if (availableCamcorderProfileNames.size() == 0) {
+            log("Camera " +  cameraId + " doesn't support camcorder profile");
+            mCamcorderProfile = -1;
+            return;
+        }
 
         mCamcorderProfile = 0;
         log("Setting camcorder profile to " + nameArray[mCamcorderProfile]);
@@ -1569,6 +1578,19 @@ public class TestingCamera extends Activity
         }
     }
 
+    private static final int BIT_RATE_1080P = 16000000;
+    private static final int BIT_RATE_MIN = 64000;
+    private static final int BIT_RATE_MAX = 40000000;
+
+    private int getVideoBitRate(Camera.Size sz) {
+        int rate = BIT_RATE_1080P;
+        float scaleFactor = sz.height * sz.width / (float)(1920 * 1080);
+        rate = (int)(rate * scaleFactor);
+
+        // Clamp to the MIN, MAX range.
+        return Math.max(BIT_RATE_MIN, Math.min(BIT_RATE_MAX, rate));
+    }
+
     private void startRecording() {
         log("Starting recording");
 
@@ -1608,8 +1630,17 @@ public class TestingCamera extends Activity
 
         mRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
         mRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
-        mRecorder.setProfile(mCamcorderProfiles.get(mCamcorderProfile));
+
         Camera.Size videoRecordSize = mVideoRecordSizes.get(mVideoRecordSize);
+        if (mCamcorderProfile >= 0) {
+            mRecorder.setProfile(mCamcorderProfiles.get(mCamcorderProfile));
+        } else {
+            mRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+            mRecorder.setVideoEncodingBitRate(getVideoBitRate(videoRecordSize));
+            mRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+            mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+        }
+
         if (videoRecordSize.width > 0 && videoRecordSize.height > 0) {
             mRecorder.setVideoSize(videoRecordSize.width, videoRecordSize.height);
         }
