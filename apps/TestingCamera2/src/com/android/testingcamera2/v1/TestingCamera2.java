@@ -237,14 +237,11 @@ public class TestingCamera2 extends Activity implements SurfaceHolder.Callback {
         if ((checkSelfPermission(Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED )
             || (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED)
-            || (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED)) {
             Log.i(TAG, "Requested camera/video permissions");
             requestPermissions(new String[] {
                         Manifest.permission.CAMERA,
-                        Manifest.permission.RECORD_AUDIO,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                        Manifest.permission.RECORD_AUDIO },
                     PERMISSIONS_REQUEST_CAMERA);
             return;
         }
