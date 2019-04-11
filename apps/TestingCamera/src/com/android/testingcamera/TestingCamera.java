@@ -34,6 +34,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.view.OrientationEventListener;
 import android.view.View;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -179,6 +180,7 @@ public class TestingCamera extends Activity
     private static final int PERMISSIONS_REQUEST_CAMERA = 1;
     private static final int PERMISSIONS_REQUEST_RECORDING = 2;
     static final int PERMISSIONS_REQUEST_SNAPSHOT = 3;
+    private OrientationEventHandler mOrientationHandler;
 
     /** Activity lifecycle */
 
@@ -331,6 +333,34 @@ public class TestingCamera extends Activity
         }
 
         mRS = RenderScript.create(this);
+
+        mOrientationHandler = new OrientationEventHandler(this);
+    }
+
+    private static class OrientationEventHandler extends OrientationEventListener {
+        private TestingCamera mActivity;
+        private int mCurrentRotation = -1;
+        OrientationEventHandler(TestingCamera activity) {
+            super(activity);
+            mActivity = activity;
+        }
+
+        @Override
+        public void onOrientationChanged(int orientation) {
+            if (mActivity != null) {
+                int rotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
+                if (mCurrentRotation != rotation) {
+                    mCurrentRotation = rotation;
+                    mActivity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            mActivity.setCameraDisplayOrientation();
+                            mActivity.resizePreview();
+                        }
+                    });
+                }
+            }
+        }
     }
 
     @Override
@@ -338,6 +368,7 @@ public class TestingCamera extends Activity
         super.onResume();
         log("onResume: Setting up");
         setUpCamera();
+        mOrientationHandler.enable();
     }
 
     @Override
@@ -361,6 +392,7 @@ public class TestingCamera extends Activity
             }
             mState = CAMERA_UNINITIALIZED;
         }
+        mOrientationHandler.disable();
     }
 
     @Override
@@ -418,7 +450,7 @@ public class TestingCamera extends Activity
                 }
             }
 
-            if (mPreviewHolder != null) {
+            if (mPreviewHolder != null || mState == CAMERA_UNINITIALIZED) {
                 return;
             }
             log("Surface holder available: " + width + " x " + height);
@@ -1397,8 +1429,33 @@ public class TestingCamera extends Activity
     }
 
     void layoutPreview() {
+        int rotation = getWindowManager().getDefaultDisplay().getRotation();
         int width = mPreviewSizes.get(mPreviewSize).width;
         int height = mPreviewSizes.get(mPreviewSize).height;
+        switch (rotation) {
+            case Surface.ROTATION_0:
+            case Surface.ROTATION_180:
+                // Portrait
+                // Switch the preview size so that the longer edge aligns with the taller
+                // dimension.
+                if (width > height) {
+                    int tmp = height;
+                    height = width;
+                    width = tmp;
+                }
+                break;
+            case Surface.ROTATION_90:
+            case Surface.ROTATION_270:
+                // Landscape
+                // Possibly somewhat unlikely case but we should try to handle it too.
+                if (height > width) {
+                    int tmp = height;
+                    height = width;
+                    width = tmp;
+                }
+                break;
+        }
+
         float previewAspect = ((float) width) / height;
 
         int viewHeight = mPreviewView.getHeight();
@@ -1411,6 +1468,8 @@ public class TestingCamera extends Activity
         }
         mPreviewView.setLayoutParams(
                 new LayoutParams(viewWidth, viewHeight));
+        log("Setting layout params viewWidth: " + viewWidth + " viewHeight: " + viewHeight +
+                " display rotation: " + rotation);
 
         if (mCallbacksEnabled) {
             int callbackHeight = mCallbackView.getHeight();
